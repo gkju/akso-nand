@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
-// FIXME: usunac zbedne includy
 #include <stdio.h>
 #include "nand.h"
 #include "utils.h"
+// FIXME: usunac zbedne includy
 
 typedef enum {
     INVALID,
@@ -57,23 +57,20 @@ void nand_delete(nand_t *g) {
     if (!g) {
         return;
     }
-
-    if (g->inputs) {
-        for(unsigned i = 0; i < g->n; i++) {
-            connection *c = &g->inputs[i];
-            if (c->type == NAND) {
-                nand_t *gate = c->value_ptr.nand_ptr;
-                // FIXME: usunac debug
-                printf("deleting connection from %p to %p\n", gate, g); 
-                delete_node(gate->outputs, c->other_end->index);
-            }
+    
+    for(unsigned i = 0; i < g->n; i++) {
+        connection *c = &g->inputs[i];
+        if (c->type == NAND) {
+            nand_t *gate = c->value_ptr.nand_ptr;
+            delete_node(gate->outputs, c->other_end->index);
         }
+    }
+
+    delete_connection_vector(g->outputs);
+
+    if(g->inputs) {
         free(g->inputs);
     }
-    if (g->outputs) {
-        delete_connection_vector(g->outputs);
-    }
-
     free(g);
 }
 
@@ -93,7 +90,10 @@ int nand_connect_nand(nand_t *g_out, nand_t *g_in, unsigned k) {
 
     connection *conn = &g_in->inputs[k];
     // Jesli conn jest podpiety do g_out, to odlaczanie moze wywolac realloc na wektorze g_out->outputs
-    bool flag = conn->value_ptr.nand_ptr == g_out;
+    bool flag = false;
+    if(conn->type == NAND) {
+        flag = conn->value_ptr.nand_ptr == g_out;
+    }
     connection *new_conn = add_connection(g_out->outputs);
     if (!new_conn) {
         errno = ENOMEM;

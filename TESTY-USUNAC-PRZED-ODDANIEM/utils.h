@@ -41,7 +41,7 @@ static void rectify_other_end(connection_vector *vector, size_t i) {
 }
 
 static connection_vector *create_connection_vector() {
-    connection_vector *vector = (connection_vector*) calloc(1, sizeof(connection_vector));
+    connection_vector *vector = (connection_vector*) malloc(sizeof(connection_vector));
     if (!vector) {
         return NULL;
     }
@@ -76,8 +76,8 @@ static connection* add_connection(connection_vector *vector) {
 }
 
 static connection *delete_node(connection_vector *vector, int index) {
-    vector->size--;
     /* FIXME: napisali w specyfikacji ze musi sie udac realloc na mniej?? chyba */
+    // FIXME: usunac debug
     if(vector->size * 4 < vector->capacity && vector->capacity > 2) {
         connection *new_buffer = (connection*) realloc(vector->buffer, sizeof(connection) * vector->capacity >> 1);
         if (new_buffer) {
@@ -89,10 +89,12 @@ static connection *delete_node(connection_vector *vector, int index) {
             }
         }
     }
+    vector->size--;
 
     if(vector->buffer[index].type == NAND) {
         connection *other_end = vector->buffer[index].other_end;
         other_end->type = NONE;
+        other_end->other_end = NULL;
     }
 
     if (!vector->size) {
@@ -101,9 +103,7 @@ static connection *delete_node(connection_vector *vector, int index) {
 
     vector->buffer[index] = vector->buffer[vector->size];
     vector->buffer[index].index = index;
-    if(vector->buffer[index].type == NAND) {
-        vector->buffer[index].other_end->other_end = &vector->buffer[index];
-    }
+    rectify_other_end(vector, index);
 
     return &vector->buffer[index];
 }
@@ -113,9 +113,10 @@ static void delete_connection_vector(connection_vector *vector) {
         return;
     }
 
-    for (size_t i = 0; i < vector->size; i++) {
-        delete_node(vector, i);
+    while(vector->size) {
+        delete_node(vector, 0);
     }
+
     free(vector->buffer);
     free(vector);
 }
