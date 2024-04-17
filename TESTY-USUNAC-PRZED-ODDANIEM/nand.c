@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include "nand.h"
 #include "utils.h"
 // FIXME: usunac zbedne includy
@@ -130,6 +129,10 @@ void set_validity(nand_t *g, bool unflag) {
     g->output_validity = unflag ? INVALID : VALID;
 }
 
+bool read_validity(nand_t *g, bool unflag) {
+    return unflag ? g->output_validity == INVALID : g->output_validity == VALID;
+}
+
 dfs_output nand_dfs(nand_t *g, bool unflag) {
     dfs_output res;
 
@@ -138,7 +141,7 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
         errno = ECANCELED;
         res.value = -1;
         return res;
-    } else if(g->output_validity ^ unflag) {
+    } else if(read_validity(g, unflag)) {
         res.value = g->output_value;
         res.path_length = g->path_length;
         return res;
@@ -169,8 +172,6 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
             inputval = *cur.value_ptr.bool_ptr;
         }
 
-        printf("for i=%d we got inputval: %d\n", i, inputval);
-
         if(!inputval) {
             res.value = true;
         }
@@ -191,7 +192,7 @@ ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
         return -1;
     }
 
-    size_t successfull_dfs_cnt = 0;
+    size_t dfs_cnt = 0, successful_dfs_cnt = 0;
     ssize_t crit_path_length = 0;
     for(size_t i = 0; i < m; ++i) {
         if(!g[i]) {
@@ -200,6 +201,7 @@ ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
         }
 
         dfs_output out = nand_dfs(g[i], false);
+        ++dfs_cnt;
         if(out.value == -1) {
             errno = ECANCELED;
             break;
@@ -207,14 +209,14 @@ ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
 
         s[i] = (bool) out.value;
         crit_path_length = max(crit_path_length, out.path_length);
-        ++successfull_dfs_cnt;
+        ++successful_dfs_cnt;
     }
 
-    for(size_t i = 0; i < successfull_dfs_cnt; ++i) {
+    for(size_t i = 0; i < dfs_cnt; ++i) {
         nand_dfs(g[i], true);
     }
 
-    if(successfull_dfs_cnt < m) {
+    if(successful_dfs_cnt < m) {
         return -1;
     }
 
