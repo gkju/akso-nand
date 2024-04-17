@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     }
     
     int n = randint(0, 6);
-    int q = randint(5, 10'000);
+    int q = randint(5, 1000'000);
     cout << n << " " << q << "\n";
     
     set<int>active_gates;

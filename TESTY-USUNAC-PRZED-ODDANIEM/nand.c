@@ -155,7 +155,7 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
         bool inputval = false;
         if(cur.type == NONE) {
             res.value = -1;
-            errno = EINVAL;
+            errno = ECANCELED;
             set_validity(g, unflag);
             return res;
         } else if(cur.type == NAND) {

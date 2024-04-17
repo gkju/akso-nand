@@ -36,15 +36,15 @@ nand_t* nand_new(unsigned n) {
     gate->n = n;
     // calloc gwarantuje ustawienie inputow na NONE
     gate->inputs = calloc(n, sizeof(connection));
-    for(unsigned i = 0; i < n; ++i) {
-        gate->inputs[i].type = NONE;
-        gate->inputs[i].index = i;
-    }
     gate->outputs = create_connection_vector();
     if (!gate->outputs || !gate->inputs) {
         nand_delete(gate);
         errno = ENOMEM;
         return NULL;
+    }
+    for(unsigned i = 0; i < n; ++i) {
+        gate->inputs[i].type = NONE;
+        gate->inputs[i].index = i;
     }
     gate->output_value = false;
     gate->path_length = 0;
@@ -57,19 +57,19 @@ void nand_delete(nand_t *g) {
         return;
     }
     
-    for(unsigned i = 0; i < g->n; i++) {
-        connection *c = &g->inputs[i];
-        if (c->type == NAND) {
-            nand_t *gate = c->value_ptr.nand_ptr;
-            delete_node(gate->outputs, c->other_end->index);
+    if(g->inputs) {    
+        for(unsigned i = 0; i < g->n; i++) {
+            connection *c = &g->inputs[i];
+            if (c->type == NAND) {
+                nand_t *gate = c->value_ptr.nand_ptr;
+                delete_node(gate->outputs, c->other_end->index);
+            }
         }
+        free(g->inputs);
     }
 
     delete_connection_vector(g->outputs);
 
-    if(g->inputs) {
-        free(g->inputs);
-    }
     free(g);
 }
 
@@ -155,7 +155,7 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
         bool inputval = false;
         if(cur.type == NONE) {
             res.value = -1;
-            errno = EINVAL;
+            errno = ECANCELED;
             set_validity(g, unflag);
             return res;
         } else if(cur.type == NAND) {
