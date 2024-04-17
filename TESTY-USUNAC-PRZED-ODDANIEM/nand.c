@@ -158,24 +158,35 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
         } else if(cur.type == NAND) {
             nand_t *other_nand = cur.value_ptr.nand_ptr;
             dfs_output out = nand_dfs(other_nand, unflag);
+            if(out.value == -1) {
+                res.value = out.value;
+                set_validity(g, unflag);
+                return res;
+            }
             inputval = out.value;
             res.path_length = max(res.path_length, out.path_length);
         } else {
             inputval = *cur.value_ptr.bool_ptr;
         }
 
+        printf("for i=%d we got inputval: %d\n", i, inputval);
+
         if(!inputval) {
             res.value = true;
         }
     }
-
-    ++res.path_length;
+    
+    if(g->n) {
+        ++res.path_length;
+    } 
     set_validity(g, unflag);
+    g->output_value = res.value;
+    g->path_length = res.path_length;
     return res;
 }
 
 ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
-    if(!m) {
+    if(!m || !g || !s) {
         errno = EINVAL;
         return -1;
     }
