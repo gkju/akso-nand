@@ -1,9 +1,9 @@
 #ifndef UTILS_H
 #define UTILS_H
-#include <stdlib.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "nand.h"
-// FIXME: dodać statici inliney zeby header only sie ladnie kompilowal/wywalic do utils.c
+
 typedef enum {
     NONE,
     BOOL,
@@ -11,15 +11,15 @@ typedef enum {
 } connection_type;
 
 typedef union {
-    nand_t *nand_ptr;
     const bool *bool_ptr;
+    nand_t *nand_ptr;
 } connection_value_ptr;
 
 struct connection {
     connection_type type;
     connection_value_ptr value_ptr;
-    size_t index;
     struct connection *other_end;
+    size_t index;
 };
 
 typedef struct connection connection;
@@ -30,17 +30,17 @@ typedef struct {
     size_t capacity;
 } connection_vector;
 
-static ssize_t max(ssize_t a, ssize_t b) {
+static inline ssize_t max(ssize_t a, ssize_t b) {
     return a > b ? a : b;
 }
 
-static void rectify_other_end(connection_vector *vector, size_t i) {
-    if(vector->buffer[i].type == NAND) {
+static inline void rectify_other_end(connection_vector *vector, size_t i) {
+    if (vector->buffer[i].type == NAND) {
         vector->buffer[i].other_end->other_end = &vector->buffer[i];
     }
 }
 
-static connection_vector *create_connection_vector() {
+static inline connection_vector *create_connection_vector() {
     connection_vector *vector = (connection_vector*) malloc(sizeof(connection_vector));
     if (!vector) {
         return NULL;
@@ -55,7 +55,7 @@ static connection_vector *create_connection_vector() {
     return vector;
 }
 
-static connection* add_connection(connection_vector *vector) {
+static inline connection* add_connection(connection_vector *vector) {
     if (vector->size >= vector->capacity) {
         connection *new_buffer = (connection*) realloc(vector->buffer, sizeof(connection) * vector->capacity << 1);
         if (!new_buffer) {
@@ -64,7 +64,7 @@ static connection* add_connection(connection_vector *vector) {
         vector->capacity <<= 1;
         vector->buffer = new_buffer;
 
-        for(size_t i = 0; i < vector->size; i++) {
+        for (size_t i = 0; i < vector->size; i++) {
             rectify_other_end(vector, i);
         }
     }
@@ -75,23 +75,21 @@ static connection* add_connection(connection_vector *vector) {
     return conn;
 }
 
-static connection *delete_node(connection_vector *vector, int index) {
-    /* FIXME: napisali w specyfikacji ze musi sie udac realloc na mniej?? chyba */
-    // FIXME: usunac debug
-    if(vector->size * 4 < vector->capacity && vector->capacity > 2) {
+static inline connection *delete_node(connection_vector *vector, int index) {
+    if (vector->size * 4 < vector->capacity && vector->capacity > 2) {
         connection *new_buffer = (connection*) realloc(vector->buffer, sizeof(connection) * vector->capacity >> 1);
         if (new_buffer) {
             vector->capacity >>= 1;
             vector->buffer = new_buffer;
 
-            for(size_t i = 0; i < vector->size; i++) {
+            for (size_t i = 0; i < vector->size; i++) {
                 rectify_other_end(vector, i);
             }
         }
     }
     vector->size--;
 
-    if(vector->buffer[index].type == NAND) {
+    if (vector->buffer[index].type == NAND) {
         connection *other_end = vector->buffer[index].other_end;
         other_end->type = NONE;
         other_end->other_end = NULL;
@@ -108,8 +106,8 @@ static connection *delete_node(connection_vector *vector, int index) {
     return &vector->buffer[index];
 }
 
-static void delete_connection_vector(connection_vector *vector) {
-    if(!vector) {
+static inline void delete_connection_vector(connection_vector *vector) {
+    if (!vector) {
         return;
     }
 

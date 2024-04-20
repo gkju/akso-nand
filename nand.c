@@ -1,29 +1,29 @@
-#include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "nand.h"
 #include "utils.h"
-// FIXME: usunac zbedne includy
 
 typedef enum {
     INVALID,
     VALID,
-    // do wykrywania cykli w dfsie
+    // Uzywane do wykrywania cykli w dfsie.
     IN_PROGRESS
 } output_validity_type;
 
 struct nand {
+    bool output_value;
+    output_validity_type output_validity;
     unsigned n;
     connection *inputs;
     connection_vector *outputs;
-    bool output_value;
     ssize_t path_length;
-    output_validity_type output_validity;
 };
 
 typedef struct {
+    bool value;
+    bool error;
     ssize_t path_length;
-    int8_t value;
 } dfs_output;
 
 nand_t* nand_new(unsigned n) {
@@ -34,7 +34,7 @@ nand_t* nand_new(unsigned n) {
     }
     
     gate->n = n;
-    // calloc gwarantuje ustawienie inputow na NONE
+    // Wywolanie calloc gwarantuje ustawienie inputow na NONE.
     gate->inputs = calloc(n, sizeof(connection));
     gate->outputs = create_connection_vector();
     if (!gate->outputs || !gate->inputs) {
@@ -42,7 +42,7 @@ nand_t* nand_new(unsigned n) {
         errno = ENOMEM;
         return NULL;
     }
-    for(unsigned i = 0; i < n; ++i) {
+    for (unsigned i = 0; i < n; ++i) {
         gate->inputs[i].type = NONE;
         gate->inputs[i].index = i;
     }
@@ -57,8 +57,8 @@ void nand_delete(nand_t *g) {
         return;
     }
     
-    if(g->inputs) {    
-        for(unsigned i = 0; i < g->n; i++) {
+    if (g->inputs) {    
+        for (unsigned i = 0; i < g->n; i++) {
             connection *c = &g->inputs[i];
             if (c->type == NAND) {
                 nand_t *gate = c->value_ptr.nand_ptr;
@@ -73,7 +73,7 @@ void nand_delete(nand_t *g) {
     free(g);
 }
 
-connection *disconnect_conn(connection *conn) {
+static connection *disconnect_conn(connection *conn) {
     if (conn->type == NAND) {
         nand_t *gate = conn->value_ptr.nand_ptr;
         return delete_node(gate->outputs, conn->other_end->index);
@@ -88,9 +88,9 @@ int nand_connect_nand(nand_t *g_out, nand_t *g_in, unsigned k) {
     }
 
     connection *conn = &g_in->inputs[k];
-    // Jesli conn jest podpiety do g_out, to odlaczanie moze wywolac realloc na wektorze g_out->outputs
+    // Jesli conn jest podpiety do g_out, to odlaczanie moze wywolac realloc na wektorze g_out->outputs.
     bool flag = false;
-    if(conn->type == NAND) {
+    if (conn->type == NAND) {
         flag = conn->value_ptr.nand_ptr == g_out;
     }
     connection *new_conn = add_connection(g_out->outputs);
@@ -101,9 +101,9 @@ int nand_connect_nand(nand_t *g_out, nand_t *g_in, unsigned k) {
     new_conn->type = NAND;
     new_conn->value_ptr.nand_ptr = g_in;
     new_conn->other_end = conn;
-    // Jesli doszlo do wywolania realloc'a, to new_conn zostalo przesuniete w wektorze
+    // Jesli doszlo do wywolania realloc'a, to new_conn zostalo przesuniete w wektorze.
     connection *moved = disconnect_conn(conn);
-    if(flag && moved) {
+    if (flag && moved) {
         new_conn = moved;
     }
     conn->type = NAND;
@@ -125,44 +125,45 @@ int nand_connect_signal(bool const *s, nand_t *g, unsigned k) {
     return 0;
 }
 
-void set_validity(nand_t *g, bool unflag) {
+static void set_validity(nand_t *g, bool unflag) {
     g->output_validity = unflag ? INVALID : VALID;
 }
 
-bool read_validity(nand_t *g, bool unflag) {
+static bool read_validity(nand_t *g, bool unflag) {
     return unflag ? g->output_validity == INVALID : g->output_validity == VALID;
 }
 
-dfs_output nand_dfs(nand_t *g, bool unflag) {
+static dfs_output nand_dfs(nand_t *g, bool unflag) {
     dfs_output res;
+    res.error = false;
+    res.path_length = 0;
+    res.value = false;
 
-    // FIXME: obecnie troche niespojnie raz uzywam enuma jak enum a raz jak inta, ogarnac jak najlepiej to robic
-    if(g->output_validity == IN_PROGRESS) {
+    if (g->output_validity == IN_PROGRESS) {
         errno = ECANCELED;
-        res.value = -1;
+        res.error = true;
         return res;
-    } else if(read_validity(g, unflag)) {
+    } else if (read_validity(g, unflag)) {
         res.value = g->output_value;
         res.path_length = g->path_length;
         return res;
     }
 
-    res.path_length = 0;
-    res.value = false;
     g->output_validity = IN_PROGRESS;
-    for(unsigned i = 0; i < g->n; ++i) {
+    for (unsigned i = 0; i < g->n; ++i) {
         connection cur = g->inputs[i];
         bool inputval = false;
-        if(cur.type == NONE) {
-            res.value = -1;
+        if (cur.type == NONE) {
+            res.error = true;
             errno = ECANCELED;
             set_validity(g, unflag);
             return res;
-        } else if(cur.type == NAND) {
+        } else if (cur.type == NAND) {
             nand_t *other_nand = cur.value_ptr.nand_ptr;
             dfs_output out = nand_dfs(other_nand, unflag);
-            if(out.value == -1) {
+            if (out.error) {
                 res.value = out.value;
+                res.error = true;
                 set_validity(g, unflag);
                 return res;
             }
@@ -172,12 +173,12 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
             inputval = *cur.value_ptr.bool_ptr;
         }
 
-        if(!inputval) {
+        if (!inputval) {
             res.value = true;
         }
     }
     
-    if(g->n) {
+    if (g->n) {
         ++res.path_length;
     } 
     set_validity(g, unflag);
@@ -187,22 +188,22 @@ dfs_output nand_dfs(nand_t *g, bool unflag) {
 }
 
 ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
-    if(!m || !g || !s) {
+    if (!m || !g || !s) {
         errno = EINVAL;
         return -1;
     }
 
     size_t dfs_cnt = 0, successful_dfs_cnt = 0;
     ssize_t crit_path_length = 0;
-    for(size_t i = 0; i < m; ++i) {
-        if(!g[i]) {
+    for (size_t i = 0; i < m; ++i) {
+        if (!g[i]) {
             errno = EINVAL;
             break;
         }
 
         dfs_output out = nand_dfs(g[i], false);
         ++dfs_cnt;
-        if(out.value == -1) {
+        if (out.error) {
             errno = ECANCELED;
             break;
         }
@@ -212,11 +213,11 @@ ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
         ++successful_dfs_cnt;
     }
 
-    for(size_t i = 0; i < dfs_cnt; ++i) {
+    for (size_t i = 0; i < dfs_cnt; ++i) {
         nand_dfs(g[i], true);
     }
 
-    if(successful_dfs_cnt < m) {
+    if (successful_dfs_cnt < m) {
         return -1;
     }
 
@@ -224,7 +225,7 @@ ssize_t nand_evaluate(nand_t **g, bool *s, size_t m) {
 }
 
 ssize_t nand_fan_out(nand_t const *g) {
-    if(!g) {
+    if (!g) {
         errno = EINVAL;
         return -1;
     }
@@ -233,15 +234,15 @@ ssize_t nand_fan_out(nand_t const *g) {
 }
 
 void* nand_input(nand_t const *g, unsigned k) {
-    if(!g || k >= g->n) {
+    if (!g || k >= g->n) {
         errno = EINVAL;
         return NULL;
     }
 
     connection* conn = &g->inputs[k];
-    if(conn->type == BOOL) {
+    if (conn->type == BOOL) {
         return (void*) conn->value_ptr.bool_ptr;
-    } else if(conn->type == NAND) {
+    } else if (conn->type == NAND) {
         return (void*) conn->value_ptr.nand_ptr;
     }
 
@@ -250,7 +251,7 @@ void* nand_input(nand_t const *g, unsigned k) {
 }
 
 nand_t* nand_output(nand_t const *g, ssize_t k) {
-    if(!g || k < 0 || k >= (ssize_t) g->outputs->size) {
+    if (!g || k < 0 || k >= (ssize_t) g->outputs->size) {
         errno = EINVAL;
         return NULL;
     }

@@ -2,6 +2,8 @@
     "files.associations": {
         "errno.h": "c",
         "stdbool.h": "c",
-        "variant": "c"
+        "variant": "c",
+        "nand.h": "c",
+        "stdlib.h": "c"
     }
 }
